@@ -236,7 +236,25 @@ class SitemapScraper:
         except Exception as e:
             logger.error(f"Error during authentication: {str(e)}")
             return False
+    def load_progress(self):
+        progress_file = os.path.join(self.output_dir, 'progress.json')
+        try:
+            if os.path.exists(progress_file):
+                with open(progress_file, 'r') as f:
+                    return set(json.load(f))
+        except Exception as e:
+            logger.error(f"Error loading progress: {e}")
+        return set()
 
+    def save_progress(self, url: str):
+        progress_file = os.path.join(self.output_dir, 'progress.json')
+        try:
+            scraped = self.load_progress()
+            scraped.add(url)
+            with open(progress_file, 'w') as f:
+                json.dump(list(scraped), f)
+        except Exception as e:
+            logger.error(f"Error saving progress: {e}")
     def get_sitemap_urls(self) -> List[str]:
         """Extract URLs from the local sitemap file"""
         try:
@@ -372,7 +390,7 @@ class SitemapScraper:
                     'raw_text': raw_text,
                     'scrape_timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
                 }
-                
+
                 # Try to find table
                 table = soup.find('table')
                 if not table:
@@ -412,6 +430,13 @@ class SitemapScraper:
                 for inv in all_investors_list:
                     inv['source_url'] = url
                     inv['scrape_timestamp'] = time.strftime('%Y-%m-%d %H:%M:%S')
+                
+                raw_text = self.extract_all_visible_text(soup)
+                raw_data = {
+                    'url': url,
+                    'raw_text': raw_text,
+                    'scrape_timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
+                }
                 
                 logger.info(f"Total unique investors extracted: {len(all_investors)}")
                 return raw_data, all_investors_list
@@ -522,70 +547,58 @@ class SitemapScraper:
 
     def save_to_csv(self, raw_data_list, investors_list):
         try:
-            # Convert lists to DataFrames
+            # Define consistent filenames
+            raw_filename = os.path.join(self.data_dir, 'raw_data.csv')
+            investors_filename = os.path.join(self.data_dir, 'validinvestors.csv')
+
+            # Write/append raw data
+            if not raw_data_list:
+                return
+                
             raw_df = pd.DataFrame(raw_data_list)
-            investors_df = pd.DataFrame(investors_list)
-        
-            if not raw_df.empty:
-                timestamp = time.strftime('%Y%m%d_%H%M%S')
-                raw_filename = os.path.join(self.data_dir, f'raw_data_{timestamp}.csv')
-                raw_df.to_csv(raw_filename, index=False)
-                logger.info(f'Saved {len(raw_df)} raw records to {raw_filename}')
-        
-            if not investors_df.empty:
-                timestamp = time.strftime('%Y%m%d_%H%M%S')
-                investors_filename = os.path.join(self.data_dir, f'validinvestors_{timestamp}.csv')
-                investors_df.to_csv(investors_filename, index=False)
-                logger.info(f'Saved {len(investors_df)} investor records to {investors_filename}')
-        
+            write_header = not os.path.exists(raw_filename)
+            raw_df.to_csv(raw_filename, mode='a', index=False, header=write_header)
+            logger.info(f'Appended {len(raw_df)} raw records to {raw_filename}')
+
+            # Write/append investors data
+            if investors_list:
+                investors_df = pd.DataFrame(investors_list)
+                write_header = not os.path.exists(investors_filename)
+                investors_df.to_csv(investors_filename, mode='a', index=False, header=write_header)
+                logger.info(f'Appended {len(investors_df)} investor records to {investors_filename}')
+
         except Exception as e:
             logger.error(f'Error saving data to CSV: {str(e)}')
 
-    def scrape_all(self, limit: int = None) -> tuple:
-        """Scrape all URLs from sitemap up to the specified limit"""
-        all_raw_data = []
-        all_investors = []
+    def scrape_all(self, urls: List[str], limit: int = None):
+        scraped_urls = self.load_progress()
+        new_urls = [url for url in urls if url not in scraped_urls]
         
-        # Get URLs from sitemap
-        urls = self.get_sitemap_urls()
-        if not urls:
-            logger.error("No URLs found in sitemap")
-            return [], []
-        
-        # Apply limit if specified
-        if limit:
-            urls = urls[:limit]
-            logger.info(f"Limiting scrape to first {limit} URLs")
-        
-        # Scrape each URL
-        for url in urls:
+        for i, url in enumerate(new_urls):
+            if limit and i >= limit:
+                break
             try:
                 raw_data, investors = self.scrape_page(url)
-                if raw_data:
-                    all_raw_data.append(raw_data)
-                if investors:
-                    all_investors.extend(investors)
-                logger.info(f"Successfully scraped {url}")
+                self.save_to_csv([raw_data], investors)
+                self.save_progress(url)
+                logger.info(f"Successfully processed: {url}")
             except Exception as e:
-                logger.error(f"Error scraping {url}: {str(e)}")
-                continue
-        
-        logger.info(f"Scraping complete. Processed {len(urls)} URLs")
-        logger.info(f"Total raw data entries: {len(all_raw_data)}")
-        logger.info(f"Total investors found: {len(all_investors)}")
-        
-        return all_raw_data, all_investors
+                logger.error(f"Failed {url}: {str(e)}")
 
 def main():
+    sitemap_path = r'sitemap.xml\sitemap.xml'  # Raw string for Windows paths
+    scraper = SitemapScraper(sitemap_path)
+    
     try:
-        scraper = SitemapScraper('sitemap.xml\\sitemap.xml')
-        raw_df, investors_df = scraper.scrape_all(limit=5)
-        if len(raw_df) > 0 or len(investors_df) > 0:
-            scraper.save_to_csv(raw_df, investors_df)
+        urls = scraper.get_sitemap_urls()
+        if urls:
+            scraper.scrape_all(urls)
         else:
-            logger.warning("No data was scraped, skipping CSV save")
+            logger.error("No URLs found in sitemap")
     except Exception as e:
-        logger.error(f"Error in main: {str(e)}")
+        logger.error(f"Fatal error: {str(e)}")
+    finally:
+        scraper.driver.quit()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

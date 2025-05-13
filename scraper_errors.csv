@@ -1,0 +1,12 @@
+,timestamp,url,error
+0,2025-05-13 11:19:22,https://signal.nfx.com/investors/lylan-masterman,SitemapScraper.save_cookies() takes 1 positional argument but 2 were given
+0,2025-05-13 11:20:54,https://signal.nfx.com/investors/lylan-masterman,name 'pickle' is not defined
+0,2025-05-13 11:25:41,https://signal.nfx.com/investors/lylan-masterman,Ran out of input
+0,2025-05-13 11:43:32,https://signal.nfx.com/investors/lylan-masterman,argument of type 'NoneType' is not iterable
+0,2025-05-13 11:45:19,https://signal.nfx.com/investors/lylan-masterman,'NoneType' object is not subscriptable
+0,2025-05-13 11:47:26,https://signal.nfx.com/investors/lylan-masterman,'NoneType' object has no attribute 'text'
+0,2025-05-13 13:01:25,https://signal.nfx.com/investors/lylan-masterman,'NoneType' object is not callable
+0,2025-05-13 13:31:23,https://signal.nfx.com/investors/satya-patel,name 'all_previous_investments' is not defined
+0,2025-05-13 13:31:53,https://signal.nfx.com/investors/satya-patel,name 'all_previous_investments' is not defined
+0,2025-05-13 13:34:50,https://signal.nfx.com/investors/satya-patel,list index out of range
+0,2025-05-13 13:36:01,https://signal.nfx.com/investors/satya-patel,name 'all_previous_investments' is not defined
