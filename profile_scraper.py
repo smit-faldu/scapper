@@ -122,9 +122,29 @@ class ProfileScraper:
             'social_links': {},
             'network_memberships': [],
             'education': [],
-            'all_previous_investments': []
+            'all_previous_investments': [],
+            'image_urls': []
         }
-
+        
+        # Enhanced image extraction with multiple selectors
+        for selector in [
+            '.carousel-container-inner .item img',  # Primary carousel
+            '.contact-card-img',  # Fallback contact card image
+            '.investor-thumbnail',  # Thumbnail images
+            'img[src*="active_storage"]'  # Any active storage images
+        ]:
+            for img in soup.select(selector):
+                if img and 'src' in img.attrs and img['src'] not in profile['image_urls']:
+                    profile['image_urls'].append(img['src'])
+        
+        # Set primary image as first in array if available
+        if profile['image_urls']:
+            profile['image_url'] = profile['image_urls'][0]
+        
+        active_img = soup.select_one('.carousel-container-inner .item.active img')
+        if active_img and 'src' in active_img.attrs:
+            profile['image_url'] = active_img['src']
+            
         # Extract investment stats with safe element access
         for row in soup.select('.line-separated-row.row'):
             label_elem = row.select_one('.col-xs-5 .lh-solid')
@@ -242,10 +262,24 @@ class ProfileScraper:
         if not self.profile_data:
             return
 
-        df = pd.DataFrame(self.profile_data)
         output_file = os.path.join(self.data_dir, 'investor_profiles.csv')
-        df.to_csv(output_file, index=False, mode='a', header=not os.path.exists(output_file))
-        self.logger.info(f'Saved {len(df)} profiles to {output_file}')
+        
+        # Read existing data if file exists
+        existing_data = pd.DataFrame()
+        if os.path.exists(output_file):
+            existing_data = pd.read_csv(output_file)
+        
+        # Filter out duplicates based on URL
+        new_data = pd.DataFrame(self.profile_data)
+        if not existing_data.empty:
+            new_data = new_data[~new_data['url'].isin(existing_data['url'])]
+        
+        # Combine and save
+        combined_data = pd.concat([existing_data, new_data], ignore_index=True)
+        combined_data.to_csv(output_file, index=False)
+        
+        self.logger.info(f'Saved {len(new_data)} new profiles (total {len(combined_data)} unique profiles) to {output_file}')
+        self.profile_data = []  # Clear after saving
 
     def save_error(self, url, error):
         error_file = os.path.join(self.data_dir, 'scraper_errors.csv')
@@ -276,7 +310,7 @@ class ProfileScraper:
         
         try:
             # Initialize empty profile file
-            pd.DataFrame(columns=['url', 'timestamp', 'status']).to_csv(profile_file, index=False)
+            pd.DataFrame().to_csv(profile_file, index=False,mode='a')
             
             self.driver.get(profile_url)
             self.random_sleep(3, 5)
@@ -414,22 +448,32 @@ class SitemapScraper:
         return self.investor_links
 
 if __name__ == '__main__':
-    # Initialize profile scraper FIRST
+    # Initialize profile scraper
     scraper = ProfileScraper(data_dir=os.getcwd(), headless=False)
     
     # Initialize and parse sitemap
     sitemap_scraper = SitemapScraper()
     if sitemap_scraper.parse_local_sitemap():
-        investor_urls = sitemap_scraper.get_investor_links()
+        # Get all investor URLs
+        all_investor_urls = sitemap_scraper.get_investor_links()
+        
+        # Check for existing progress file
+        progress_file = os.path.join(os.getcwd(), 'progress.csv')
+        if os.path.exists(progress_file):
+            # Load already scraped URLs
+            progress_df = pd.read_csv(progress_file)
+            scraped_urls = set(progress_df['url'].tolist())
+            
+            # Filter out already scraped URLs
+            investor_urls = [url for url in all_investor_urls if url not in scraped_urls]
+            print(f"Resuming from checkpoint - {len(investor_urls)} URLs remaining")
+        else:
+            investor_urls = all_investor_urls
+            print(f"Starting fresh scrape - {len(investor_urls)} URLs to process")
+        
         total_links = len(investor_urls)
-        
-        print(f"Found {total_links} investor links in sitemap")
-        # Now use the properly initialized scraper
-        scraper.logger.info(f"\n{'='*40}\nStarting scrape of {total_links} investor profiles\n{'='*40}")
-        
         successful_scrapes = 0
 
-        # In the main scraping loop, add more detailed error handling:
         for i, url in enumerate(investor_urls, 1):
             try:
                 scraper.logger.info(f"Scraping URL {i}/{total_links}")
@@ -438,9 +482,6 @@ if __name__ == '__main__':
             except Exception as e:
                 scraper.logger.error(f"Failed to scrape {url}")
                 scraper.logger.error(f"Error details: {str(e)}")
-                scraper.logger.error(f"Page source saved to debug.html")
-                with open("debug.html", "w", encoding="utf-8") as f:
-                    f.write(scraper.driver.page_source)
                 scraper.save_error(url, str(e))
             finally:
                 scraper.random_sleep(5, 10)
