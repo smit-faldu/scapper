@@ -1,0 +1,10 @@
+url,status,timestamp,file_path
+https://signal.nfx.com/investors/jason-costa,success,2025-05-13 16:32:06,D:\vertx internship\scrapping\profile_scper_data.csv
+https://signal.nfx.com/investors/gali-ross,success,2025-05-13 16:32:24,D:\vertx internship\scrapping\profile_scper_data.csv
+https://signal.nfx.com/investors/ram-shriram,success,2025-05-13 16:32:39,D:\vertx internship\scrapping\profile_scper_data.csv
+https://signal.nfx.com/investors/pablo-gonzalez-del-corral,success,2025-05-13 16:32:55,D:\vertx internship\scrapping\profile_scper_data.csv
+https://signal.nfx.com/investors/tasha-bengoechea,success,2025-05-13 16:33:10,D:\vertx internship\scrapping\profile_scper_data.csv
+https://signal.nfx.com/investors/jason-costa,success,2025-05-13 16:36:46,D:\vertx internship\scrapping\profile_scper_data.csv
+https://signal.nfx.com/investors/gali-ross,success,2025-05-13 16:37:04,D:\vertx internship\scrapping\profile_scper_data.csv
+https://signal.nfx.com/investors/ram-shriram,success,2025-05-13 16:37:20,D:\vertx internship\scrapping\profile_scper_data.csv
+https://signal.nfx.com/investors/pablo-gonzalez-del-corral,failed,"('Connection aborted.', ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None))",2025-05-13 16:37:30
